@@ -4,24 +4,54 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tidal Financial Group — ETF Heatmap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
+
   <header id="controls">
-    <div id="title-area">
-      <h1>Tidal Financial Group</h1>
+    <div id="header-left">
+      <h1>TIDAL</h1>
       <span id="subtitle">ETF Heatmap</span>
     </div>
-    <div id="toggle-group">
-      <button class="toggle-btn active" data-group="brand">By Brand</button>
-      <button class="toggle-btn" data-group="strategy">By Strategy</button>
+    <div id="header-center">
+      <div id="toggle-group">
+        <button class="toggle-btn" data-group="strategy">By Strategy</button>
+        <button class="toggle-btn" data-group="brand">By Brand</button>
+      </div>
+      <div id="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search-input" placeholder="Search ticker..." autocomplete="off" spellcheck="false">
+      </div>
     </div>
-    <div id="meta">
-      <span id="etf-count"></span>
+    <div id="header-right">
       <span id="last-updated"></span>
     </div>
   </header>
+
+  <div id="stats-bar">
+    <div class="stat">
+      <span class="stat-value" id="stat-total">—</span>
+      <span class="stat-label">ETFs</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat">
+      <span class="stat-value" id="stat-avg">—</span>
+      <span class="stat-label">Avg Change</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat">
+      <span class="stat-value positive" id="stat-gainers">—</span>
+      <span class="stat-label">Gainers</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat">
+      <span class="stat-value negative" id="stat-losers">—</span>
+      <span class="stat-label">Losers</span>
+    </div>
+  </div>
 
   <div id="breadcrumb"></div>
 
@@ -31,7 +61,7 @@
 
   <div id="loading">
     <div class="spinner"></div>
-    <p>Loading ETF data...</p>
+    <p>Loading live ETF data...</p>
   </div>
 
   <div id="error"></div>

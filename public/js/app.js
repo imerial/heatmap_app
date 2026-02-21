@@ -1,10 +1,11 @@
 /**
  * Main application entry point.
- * Wires together data fetching, rendering, toggle controls, and auto-refresh.
+ * Wires together data fetching, rendering, toggle controls,
+ * search, summary stats, and auto-refresh.
  */
 
-let currentGrouping = 'brand';
-const REFRESH_INTERVAL = 3600000; // 1 hour in ms
+let currentGrouping = 'strategy'; // default to strategy (11 clean groups)
+const REFRESH_INTERVAL = 3600000; // 1 hour
 
 async function init() {
   const data = await fetchHeatmapData();
@@ -13,13 +14,17 @@ async function init() {
     document.getElementById('loading').classList.add('hidden');
     renderHeatmap(data, currentGrouping);
     updateTimestamp();
-    updateETFCount(data);
+    updateStats(data);
   } else {
     document.getElementById('loading').querySelector('p').textContent =
       'Connection issue. Retrying...';
     setTimeout(init, 5000);
     return;
   }
+
+  // Set the default toggle button as active
+  const defaultBtn = document.querySelector(`.toggle-btn[data-group="${currentGrouping}"]`);
+  if (defaultBtn) defaultBtn.classList.add('active');
 
   // Toggle buttons
   document.querySelectorAll('.toggle-btn').forEach(btn => {
@@ -32,17 +37,36 @@ async function init() {
 
       const cached = getCachedData();
       if (cached) {
-        // Reset to overview when switching grouping
         renderHeatmap(cached, currentGrouping);
       }
     });
   });
 
+  // Search input
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    let debounceTimer;
+    searchInput.addEventListener('input', function() {
+      clearTimeout(debounceTimer);
+      const val = this.value.trim();
+      debounceTimer = setTimeout(() => {
+        performSearch(val);
+      }, 250);
+    });
+
+    // Escape to clear search
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        this.value = '';
+        performSearch('');
+      }
+    });
+  }
+
   // Auto-refresh every hour
   setInterval(async () => {
     const newData = await fetchHeatmapData();
     if (newData) {
-      // Re-render current view (preserves zoom state if in detail)
       if (currentView === 'detail' && currentGroup) {
         const grouped = d3.group(newData.filter(d => d.price !== null || d.aum > 0), d => d[activeGroupBy]);
         const groupETFs = grouped.get(currentGroup);
@@ -56,7 +80,7 @@ async function init() {
         renderHeatmap(newData, currentGrouping);
       }
       updateTimestamp();
-      updateETFCount(newData);
+      updateStats(newData);
     }
   }, REFRESH_INTERVAL);
 
@@ -81,6 +105,40 @@ async function init() {
   });
 }
 
+/**
+ * Update the summary stats bar
+ */
+function updateStats(data) {
+  if (!data) return;
+
+  const withPrice = data.filter(d => d.price !== null);
+  const total = withPrice.length;
+
+  const totalEl = document.getElementById('stat-total');
+  if (totalEl) totalEl.textContent = total;
+
+  // Average change
+  const avgChange = total > 0
+    ? withPrice.reduce((s, d) => s + (d.changesPercentage || 0), 0) / total
+    : 0;
+  const avgEl = document.getElementById('stat-avg');
+  if (avgEl) {
+    avgEl.textContent = formatChange(avgChange);
+    avgEl.classList.remove('positive', 'negative');
+    avgEl.classList.add(avgChange >= 0 ? 'positive' : 'negative');
+  }
+
+  // Gainers & losers
+  const gainers = withPrice.filter(d => (d.changesPercentage || 0) > 0).length;
+  const losers = withPrice.filter(d => (d.changesPercentage || 0) < 0).length;
+
+  const gainersEl = document.getElementById('stat-gainers');
+  if (gainersEl) gainersEl.textContent = gainers;
+
+  const losersEl = document.getElementById('stat-losers');
+  if (losersEl) losersEl.textContent = losers;
+}
+
 function updateTimestamp() {
   const el = document.getElementById('last-updated');
   if (el) {
@@ -89,14 +147,6 @@ function updateTimestamp() {
       hour: '2-digit',
       minute: '2-digit'
     });
-  }
-}
-
-function updateETFCount(data) {
-  const el = document.getElementById('etf-count');
-  if (el && data) {
-    const withPrice = data.filter(d => d.price !== null).length;
-    el.textContent = withPrice + ' ETFs';
   }
 }
 
