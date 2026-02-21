@@ -1,7 +1,7 @@
 /**
  * Local development server.
- * Serves static files from public/ and mocks the /api/quotes endpoint
- * with simulated price data so you can preview the heatmap without an API key.
+ * Serves static files from public/ and fetches real data from Yahoo Finance.
+ * No API key needed.
  *
  * Usage: node scripts/dev-server.js
  */
@@ -13,6 +13,83 @@ const path = require('path');
 const PORT = 4567;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const CATALOG_PATH = path.join(__dirname, '..', 'data', 'etf-catalog.json');
+const BATCH_SIZE = 20;
+
+async function fetchRealQuotes() {
+  const catalog = JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf-8'));
+  const tickers = catalog.map(e => e.ticker);
+
+  const batches = [];
+  for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
+    batches.push(tickers.slice(i, i + BATCH_SIZE));
+  }
+
+  console.log(`  Fetching ${tickers.length} ETFs in ${batches.length} batches from Yahoo Finance...`);
+
+  const results = await Promise.all(
+    batches.map(async (batch) => {
+      const url = `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${batch.join(',')}&range=1d&interval=1d`;
+      try {
+        const response = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        if (!response.ok) {
+          console.error(`  Yahoo batch error: HTTP ${response.status}`);
+          return {};
+        }
+        return await response.json();
+      } catch (err) {
+        console.error(`  Yahoo fetch error:`, err.message);
+        return {};
+      }
+    })
+  );
+
+  // Merge all batch results
+  const quoteMap = {};
+  for (const result of results) {
+    if (result.spark) continue; // error response, skip
+    for (const [symbol, data] of Object.entries(result)) {
+      if (data && data.close && Array.isArray(data.close) && data.close.length > 0) {
+        const close = data.close[data.close.length - 1];
+        const prevClose = data.chartPreviousClose || close;
+        const change = close - prevClose;
+        const changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
+
+        quoteMap[symbol] = {
+          price: close,
+          change: Math.round(change * 100) / 100,
+          changesPercentage: Math.round(changePct * 100) / 100,
+        };
+      }
+    }
+  }
+
+  const matched = Object.keys(quoteMap).length;
+
+  const merged = catalog.map(etf => {
+    const quote = quoteMap[etf.ticker] || {};
+    return {
+      ticker: etf.ticker,
+      name: etf.name,
+      brand: etf.brand,
+      strategy: etf.strategy,
+      aum: etf.aum || 0,
+      price: quote.price ?? null,
+      change: quote.change ?? 0,
+      changesPercentage: quote.changesPercentage ?? 0,
+      volume: 0,
+    };
+  });
+
+  console.log(`  Got quotes for ${matched}/${catalog.length} ETFs`);
+  return merged;
+}
+
+// Cache data for 5 minutes locally
+let cachedData = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000;
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -23,34 +100,27 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml',
 };
 
-function generateMockQuotes() {
-  const catalog = JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf-8'));
-  return catalog.map(etf => {
-    const basePrice = 10 + Math.random() * 90;
-    const change = (Math.random() - 0.45) * 8; // slight positive bias, range ~-3.6 to +4.4
-    return {
-      ticker: etf.ticker,
-      name: etf.name,
-      brand: etf.brand,
-      strategy: etf.strategy,
-      aum: etf.aum || Math.floor(Math.random() * 2000000000) + 5000000, // simulate AUM if 0
-      price: Math.round(basePrice * 100) / 100,
-      change: Math.round(change * 100) / 100,
-      changesPercentage: Math.round(change * 100) / 100,
-      volume: Math.floor(Math.random() * 5000000) + 10000,
-    };
-  });
-}
-
-const server = http.createServer((req, res) => {
-  // API mock
+const server = http.createServer(async (req, res) => {
   if (req.url === '/api/quotes') {
-    const data = generateMockQuotes();
-    res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    });
-    res.end(JSON.stringify(data));
+    try {
+      const now = Date.now();
+      if (cachedData && (now - cacheTimestamp) < CACHE_TTL) {
+        console.log(`  Serving cached data (${Math.round((CACHE_TTL - (now - cacheTimestamp)) / 1000)}s remaining)`);
+      } else {
+        cachedData = await fetchRealQuotes();
+        cacheTimestamp = Date.now();
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(JSON.stringify(cachedData));
+    } catch (err) {
+      console.error('  API error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
     return;
   }
 
@@ -81,7 +151,6 @@ server.listen(PORT, () => {
   console.log(`\n  Tidal ETF Heatmap - Dev Server`);
   console.log(`  ──────────────────────────────`);
   console.log(`  Local:  http://localhost:${PORT}`);
-  console.log(`  API:    http://localhost:${PORT}/api/quotes`);
-  console.log(`\n  Using mock data (random prices & changes)`);
-  console.log(`  Press Ctrl+C to stop\n`);
+  console.log(`  Data:   LIVE (Yahoo Finance - no API key needed)`);
+  console.log(`\n  Press Ctrl+C to stop\n`);
 });

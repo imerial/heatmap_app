@@ -1,36 +1,33 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const BATCH_SIZE = 60;
+const BATCH_SIZE = 20;
 
 async function fetchWithRetry(url, retries = 3, delay = 2000) {
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
       if (response.ok) return response.json();
       if (response.status === 429) {
         await new Promise(r => setTimeout(r, delay * (i + 1)));
         continue;
       }
-      console.error(`FMP returned ${response.status} for ${url}`);
-      return [];
+      console.error(`Yahoo returned ${response.status}`);
+      return {};
     } catch (err) {
       console.error(`Fetch error (attempt ${i + 1}):`, err.message);
       if (i < retries - 1) await new Promise(r => setTimeout(r, delay));
     }
   }
-  return [];
+  return {};
 }
 
 export default async function handler(req, res) {
   try {
     const catalogPath = join(process.cwd(), 'data', 'etf-catalog.json');
     const catalog = JSON.parse(readFileSync(catalogPath, 'utf-8'));
-    const apiKey = process.env.FMP_API_KEY;
-
-    if (!apiKey) {
-      return res.status(500).json({ error: 'API key not configured' });
-    }
 
     const tickers = catalog.map(e => e.ticker);
     const batches = [];
@@ -38,19 +35,32 @@ export default async function handler(req, res) {
       batches.push(tickers.slice(i, i + BATCH_SIZE));
     }
 
-    const quoteResults = await Promise.all(
+    // Fetch from Yahoo Finance spark endpoint (no API key needed)
+    const batchResults = await Promise.all(
       batches.map(batch =>
         fetchWithRetry(
-          `https://financialmodelingprep.com/api/v3/quote/${batch.join(',')}?apikey=${apiKey}`
+          `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${batch.join(',')}&range=1d&interval=1d`
         )
       )
     );
 
-    const allQuotes = quoteResults.flat();
+    // Merge all batch results into a single quote map
     const quoteMap = {};
-    for (const q of allQuotes) {
-      if (q && q.symbol) {
-        quoteMap[q.symbol] = q;
+    for (const result of batchResults) {
+      if (result.spark) continue; // error response, skip
+      for (const [symbol, data] of Object.entries(result)) {
+        if (data && data.close && Array.isArray(data.close) && data.close.length > 0) {
+          const close = data.close[data.close.length - 1];
+          const prevClose = data.chartPreviousClose || close;
+          const change = close - prevClose;
+          const changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
+
+          quoteMap[symbol] = {
+            price: close,
+            change: Math.round(change * 100) / 100,
+            changesPercentage: Math.round(changePct * 100) / 100,
+          };
+        }
       }
     }
 
@@ -65,7 +75,7 @@ export default async function handler(req, res) {
         price: quote.price ?? null,
         change: quote.change ?? 0,
         changesPercentage: quote.changesPercentage ?? 0,
-        volume: quote.volume ?? 0,
+        volume: 0,
       };
     });
 
