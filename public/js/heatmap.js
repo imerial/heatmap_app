@@ -80,20 +80,32 @@ function renderOverview(data, groupBy) {
     .attr('width', width)
     .attr('height', height);
 
-  const leaves = root.leaves();
+  // Create gradient definitions for each tile
+  const defs = svg.append('defs');
+  leaves.forEach((d, i) => {
+    const baseColor = colorScale(d.data.avgChange || 0);
+    const lightColor = lightenColor(baseColor, 0.25);
+    const grad = defs.append('linearGradient')
+      .attr('id', 'grad-overview-' + i)
+      .attr('x1', '0%').attr('y1', '0%')
+      .attr('x2', '100%').attr('y2', '100%');
+    grad.append('stop').attr('offset', '0%').attr('stop-color', lightColor);
+    grad.append('stop').attr('offset', '100%').attr('stop-color', baseColor);
+  });
 
   const cells = svg.selectAll('g.cell')
     .data(leaves)
     .join('g')
     .attr('class', 'cell')
     .attr('transform', d => `translate(${d.x0},${d.y0})`)
-    .style('cursor', 'pointer');
+    .style('cursor', 'pointer')
+    .style('transform-origin', d => `${(d.x0 + d.x1) / 2}px ${(d.y0 + d.y1) / 2}px`);
 
-  // Background rectangle with rounded corners
+  // Background rectangle with gradient fill
   cells.append('rect')
     .attr('width', d => Math.max(0, d.x1 - d.x0))
     .attr('height', d => Math.max(0, d.y1 - d.y0))
-    .attr('fill', d => colorScale(d.data.avgChange || 0))
+    .attr('fill', (d, i) => `url(#grad-overview-${i})`)
     .attr('rx', 6)
     .attr('stroke', 'rgba(255,255,255,0.06)')
     .attr('stroke-width', 1);
@@ -223,19 +235,31 @@ function zoomIntoGroup(groupName, etfs) {
     .attr('width', width)
     .attr('height', height);
 
-  const leaves = root.leaves();
+  // Create gradient definitions for detail tiles (subtler than overview)
+  const defs = svg.append('defs');
+  leaves.forEach((d, i) => {
+    const baseColor = colorScale(d.data.change || 0);
+    const lightColor = lightenColor(baseColor, 0.15);
+    const grad = defs.append('linearGradient')
+      .attr('id', 'grad-detail-' + i)
+      .attr('x1', '0%').attr('y1', '0%')
+      .attr('x2', '100%').attr('y2', '100%');
+    grad.append('stop').attr('offset', '0%').attr('stop-color', lightColor);
+    grad.append('stop').attr('offset', '100%').attr('stop-color', baseColor);
+  });
 
   const cells = svg.selectAll('g.cell')
     .data(leaves)
     .join('g')
     .attr('class', 'cell')
-    .attr('transform', d => `translate(${d.x0},${d.y0})`);
+    .attr('transform', d => `translate(${d.x0},${d.y0})`)
+    .style('transform-origin', d => `${(d.x0 + d.x1) / 2}px ${(d.y0 + d.y1) / 2}px`);
 
-  // Background rect
+  // Background rect with gradient fill
   cells.append('rect')
     .attr('width', d => Math.max(0, d.x1 - d.x0))
     .attr('height', d => Math.max(0, d.y1 - d.y0))
-    .attr('fill', d => colorScale(d.data.change || 0))
+    .attr('fill', (d, i) => `url(#grad-detail-${i})`)
     .attr('rx', 3)
     .attr('stroke', 'rgba(255,255,255,0.04)')
     .attr('stroke-width', 0.5);

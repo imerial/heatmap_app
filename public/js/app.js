@@ -106,7 +106,33 @@ async function init() {
 }
 
 /**
- * Update the summary stats bar
+ * Animate a number from its current displayed value to a target value.
+ * Uses requestAnimationFrame for smooth 60fps with easeOutCubic.
+ */
+function animateValue(el, target, duration, formatter) {
+  if (!el) return;
+  const startText = el.textContent.replace(/[^0-9.\-]/g, '');
+  const start = parseFloat(startText) || 0;
+  const startTime = performance.now();
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function tick(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = easeOutCubic(progress);
+    const current = start + (target - start) * eased;
+    el.textContent = formatter(current);
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+}
+
+/**
+ * Update the summary stats bar with animated counters
  */
 function updateStats(data) {
   if (!data) return;
@@ -114,8 +140,11 @@ function updateStats(data) {
   const withPrice = data.filter(d => d.price !== null);
   const total = withPrice.length;
 
-  const totalEl = document.getElementById('stat-total');
-  if (totalEl) totalEl.textContent = total;
+  animateValue(
+    document.getElementById('stat-total'),
+    total, 600,
+    v => Math.round(v).toString()
+  );
 
   // Average change
   const avgChange = total > 0
@@ -123,20 +152,25 @@ function updateStats(data) {
     : 0;
   const avgEl = document.getElementById('stat-avg');
   if (avgEl) {
-    avgEl.textContent = formatChange(avgChange);
     avgEl.classList.remove('positive', 'negative');
     avgEl.classList.add(avgChange >= 0 ? 'positive' : 'negative');
   }
+  animateValue(avgEl, avgChange, 600, v => formatChange(v));
 
   // Gainers & losers
   const gainers = withPrice.filter(d => (d.changesPercentage || 0) > 0).length;
   const losers = withPrice.filter(d => (d.changesPercentage || 0) < 0).length;
 
-  const gainersEl = document.getElementById('stat-gainers');
-  if (gainersEl) gainersEl.textContent = gainers;
-
-  const losersEl = document.getElementById('stat-losers');
-  if (losersEl) losersEl.textContent = losers;
+  animateValue(
+    document.getElementById('stat-gainers'),
+    gainers, 600,
+    v => Math.round(v).toString()
+  );
+  animateValue(
+    document.getElementById('stat-losers'),
+    losers, 600,
+    v => Math.round(v).toString()
+  );
 }
 
 function updateTimestamp() {

@@ -25,6 +25,21 @@ function getTextColor(changePercent) {
 }
 
 /**
+ * Lighten a hex color by a given amount (0-1).
+ * Used for gradient top-left highlight on tiles.
+ */
+function lightenColor(hex, amount) {
+  hex = hex.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const nr = Math.min(255, Math.round(r + (255 - r) * amount));
+  const ng = Math.min(255, Math.round(g + (255 - g) * amount));
+  const nb = Math.min(255, Math.round(b + (255 - b) * amount));
+  return '#' + [nr, ng, nb].map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * Formats a percentage change value with sign and 2 decimal places.
  */
 function formatChange(value) {
