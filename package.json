@@ -1,0 +1,10 @@
+{
+  "name": "tidal-etf-heatmap",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tidal Financial Group ETF Heatmap for Notion",
+  "scripts": {
+    "refresh-aum": "node scripts/refresh-aum.js"
+  },
+  "dependencies": {}
+}

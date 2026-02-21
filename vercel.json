@@ -1,0 +1,23 @@
+{
+  "outputDirectory": "public",
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "ALLOWALL" }
+      ]
+    }
+  ],
+  "functions": {
+    "api/quotes.js": {
+      "maxDuration": 30,
+      "includeFiles": "data/**"
+    }
+  }
+}
