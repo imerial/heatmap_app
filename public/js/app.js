@@ -7,21 +7,14 @@ let currentGrouping = 'brand';
 const REFRESH_INTERVAL = 3600000; // 1 hour in ms
 
 async function init() {
-  // Fetch initial data
   const data = await fetchHeatmapData();
 
   if (data && data.length > 0) {
-    // Hide loading overlay
     document.getElementById('loading').classList.add('hidden');
-
-    // Render heatmap
     renderHeatmap(data, currentGrouping);
-
-    // Update metadata
     updateTimestamp();
     updateETFCount(data);
   } else {
-    // Retry after 5 seconds if initial load fails
     document.getElementById('loading').querySelector('p').textContent =
       'Connection issue. Retrying...';
     setTimeout(init, 5000);
@@ -38,7 +31,10 @@ async function init() {
       currentGrouping = this.dataset.group;
 
       const cached = getCachedData();
-      if (cached) renderHeatmap(cached, currentGrouping);
+      if (cached) {
+        // Reset to overview when switching grouping
+        renderHeatmap(cached, currentGrouping);
+      }
     });
   });
 
@@ -46,19 +42,41 @@ async function init() {
   setInterval(async () => {
     const newData = await fetchHeatmapData();
     if (newData) {
-      renderHeatmap(newData, currentGrouping);
+      // Re-render current view (preserves zoom state if in detail)
+      if (currentView === 'detail' && currentGroup) {
+        const grouped = d3.group(newData.filter(d => d.price !== null || d.aum > 0), d => d[activeGroupBy]);
+        const groupETFs = grouped.get(currentGroup);
+        if (groupETFs) {
+          allData = newData;
+          zoomIntoGroup(currentGroup, groupETFs);
+        } else {
+          renderHeatmap(newData, currentGrouping);
+        }
+      } else {
+        renderHeatmap(newData, currentGrouping);
+      }
       updateTimestamp();
       updateETFCount(newData);
     }
   }, REFRESH_INTERVAL);
 
-  // Re-render on window resize (debounced)
+  // Re-render on window resize (debounced, preserves zoom state)
   let resizeTimeout;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
       const cached = getCachedData();
-      if (cached) renderHeatmap(cached, currentGrouping);
+      if (!cached) return;
+
+      if (currentView === 'detail' && currentGroup) {
+        const grouped = d3.group(cached.filter(d => d.price !== null || d.aum > 0), d => d[activeGroupBy]);
+        const groupETFs = grouped.get(currentGroup);
+        if (groupETFs) {
+          zoomIntoGroup(currentGroup, groupETFs);
+        }
+      } else {
+        renderOverview(cached, currentGrouping);
+      }
     }, 250);
   });
 }
@@ -82,5 +100,4 @@ function updateETFCount(data) {
   }
 }
 
-// Start the application
 document.addEventListener('DOMContentLoaded', init);

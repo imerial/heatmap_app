@@ -81,11 +81,59 @@ html, body {
   white-space: nowrap;
 }
 
+/* Breadcrumb / Back Navigation */
+#breadcrumb {
+  display: none;
+  align-items: center;
+  padding: 6px 16px;
+  background: #16213e;
+  border-bottom: 1px solid #0f3460;
+  height: 36px;
+  flex-shrink: 0;
+  gap: 8px;
+  font-size: 13px;
+}
+
+#breadcrumb.visible {
+  display: flex;
+}
+
+#back-btn {
+  background: #0f3460;
+  border: 1px solid #1a73e8;
+  color: #8ac4ff;
+  padding: 3px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#back-btn:hover {
+  background: #1a73e8;
+  color: #fff;
+}
+
+.breadcrumb-sep {
+  color: #4a5568;
+  margin: 0 2px;
+}
+
+.breadcrumb-current {
+  color: #fff;
+  font-weight: 600;
+}
+
 /* Heatmap Container */
 #heatmap-container {
   width: 100%;
   height: calc(100vh - 48px);
   position: relative;
+}
+
+#breadcrumb.visible ~ #heatmap-container {
+  height: calc(100vh - 84px);
 }
 
 #heatmap-container svg {
@@ -96,17 +144,17 @@ html, body {
 .tooltip {
   position: fixed;
   display: none;
-  background: rgba(22, 33, 62, 0.96);
-  border: 1px solid #0f3460;
+  background: rgba(22, 33, 62, 0.97);
+  border: 1px solid #1a73e8;
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
   color: #e0e0e0;
   pointer-events: none;
   z-index: 1000;
   max-width: 300px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
 }
 
 .tooltip .tt-ticker {
@@ -136,7 +184,7 @@ html, body {
 }
 
 .tt-positive {
-  color: #26a69a;
+  color: #4caf50;
 }
 
 .tt-negative {
@@ -222,5 +270,9 @@ html, body {
 
   #heatmap-container {
     height: calc(100vh - 40px);
+  }
+
+  #breadcrumb.visible ~ #heatmap-container {
+    height: calc(100vh - 76px);
   }
 }
